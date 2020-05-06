@@ -67,7 +67,7 @@ export default class Topbar extends React.Component {
       .then(res => {
         this.setState({ clients: res.body || [] })
       })
-      
+
       serverGetter({}, {
         // contextUrl is needed because swagger-client is curently
         // not building relative server URLs correctly
@@ -168,6 +168,26 @@ export default class Topbar extends React.Component {
     let jsContent = YAML.safeLoad(editorContent)
     let yamlContent = YAML.safeDump(jsContent)
     this.props.specActions.updateSpec(yamlContent)
+  }
+
+  saveToGit = () => {
+    let editorContent = this.props.specSelectors.specStr()
+    let data = "{\"branch\": \"master\", \"content\":\"" + editorContent.split("\"").join("\\\"").split("\n").join("\\n") + "\", \"commit_message\": \"update from swagger-editor\"}"
+    //TODO vytahnout url do query parametru
+    const response = fetch('TADY PROMENA S URL NA COMMIT DO GITU, KTERA BY MELA CHODIT JAKO QUERY PARAMETR', {  //https://gitlab.factory.codenow-dev.codenow.com/api/v4/projects/44/repository/files/documentation%2Fapi%2Fswagger.yaml
+      method: 'PUT',
+      body: data,
+      headers: {
+        'Content-Type': 'application/json',
+        //TODO vytahnout private token do query parametru
+        'PRIVATE-TOKEN': 'TADY PROMENA S KLICEM, KTERA BY MELA CHODIT JAKO QUERY PARAMETR'
+      }
+    });
+    if (response.ok) {
+      return alert("File was saved to Git repository.")
+    } else{
+      return alert("Error: Unable to save file to Git repository! Try it later, please.")
+    }
   }
 
   downloadGeneratedFile = (type, name) => {
@@ -353,6 +373,9 @@ export default class Topbar extends React.Component {
               <img height="35" className="topbar-logo__img" src={ Logo } alt=""/>
             </Link>
             <DropdownMenu {...makeMenuOptions("File")}>
+              //TODO toto tlacitko hodit primo do toho horniho panelu a vymyslet logiku s disablovanim
+              <li><button type="button" onClick={this.saveToGit}>Save to Git</button></li>
+              <li role="separator"></li>
               <li><button type="button" onClick={this.importFromURL}>Import URL</button></li>
               <ImportFileMenuItem onDocumentLoad={content => this.props.specActions.updateSpec(content)} />
               <li role="separator"></li>
@@ -362,7 +385,7 @@ export default class Topbar extends React.Component {
             </DropdownMenu>
             <DropdownMenu {...makeMenuOptions("Edit")}>
               <li><button type="button" onClick={this.convertToYaml}>Convert to YAML</button></li>
-              <ConvertDefinitionMenuItem 
+              <ConvertDefinitionMenuItem
                 isSwagger2={specSelectors.isSwagger2()}
                 onClick={() => topbarActions.showModal("convert")}
                 />
