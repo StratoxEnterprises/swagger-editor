@@ -9,17 +9,27 @@ import YAML from "js-yaml"
 import beautifyJson from "json-beautify"
 
 import Logo from "./logo_small.svg"
+import Spinner from "./spinner_solid.svg"
+
+const GIT_READY = "ready"
+const GIT_IN_PROGRESS = "in-progress"
 
 export default class Topbar extends React.Component {
   constructor(props, context) {
     super(props, context)
 
+    const params = this.parseQueryParameters()
+
     this.state = {
       swaggerClient: null,
       clients: [],
       servers: [],
-      definitionVersion: "Unknown"
+      definitionVersion: "Unknown",
+      saveToGitStatus: GIT_READY,
+      repoUrl: params.file,
+      repoToken: params.token
     }
+
   }
 
   getGeneratorUrl = () => {
@@ -170,24 +180,47 @@ export default class Topbar extends React.Component {
     this.props.specActions.updateSpec(yamlContent)
   }
 
+  parseQueryParameters = () => {
+    //as is it wouldn't handle more complex scenarios but is enought for us right now (2 simple static parameters)
+    const paramsDelimiter = "&"
+    const valueDelimiter = "="
+
+    const paramsStr = window.location.search.substring(1) //remove '?' character
+    const paramsArray = paramsStr.split(paramsDelimiter)
+    const result = paramsArray.reduce((acc, parameterStr) => {
+      const [key, value] = parameterStr.split(valueDelimiter)
+      return { ...acc, [key]: decodeURIComponent(value) }
+    }, {})
+    
+    return result
+  }
+
   saveToGit = () => {
-    let editorContent = this.props.specSelectors.specStr()
-    let data = "{\"branch\": \"master\", \"content\":\"" + editorContent.split("\"").join("\\\"").split("\n").join("\\n") + "\", \"commit_message\": \"update from swagger-editor\"}"
-    //TODO vytahnout url do query parametru
-    const response = fetch('TADY PROMENA S URL NA COMMIT DO GITU, KTERA BY MELA CHODIT JAKO QUERY PARAMETR', {  //https://gitlab.factory.codenow-dev.codenow.com/api/v4/projects/44/repository/files/documentation%2Fapi%2Fswagger.yaml
-      method: 'PUT',
+    let editorContent = this.props.specSelectors.specStr().split("\"").join("\\\"").split("\n").join("\\n")
+    // eslint-disable-next-line quotes
+    let data = '{ "branch": "master", "content": "' + editorContent + '", "commit_message": "update from swagger-editor" }'
+
+    this.setState({saveToGitStatus: GIT_IN_PROGRESS})
+    fetch(this.state.repoUrl, {
+      method: "PUT",
       body: data,
       headers: {
-        'Content-Type': 'application/json',
-        //TODO vytahnout private token do query parametru
-        'PRIVATE-TOKEN': 'TADY PROMENA S KLICEM, KTERA BY MELA CHODIT JAKO QUERY PARAMETR'
+        "Content-Type": "application/json",
+        "PRIVATE-TOKEN": this.state.repoToken
       }
-    });
-    if (response.ok) {
-      return alert("File was saved to Git repository.")
-    } else{
-      return alert("Error: Unable to save file to Git repository! Try it later, please.")
-    }
+    }).then(response => {
+      if(!response.ok) {
+        console.error(response)
+        throw new Error(`GitLab request failed with status code ${response.status}`)
+      }
+
+      // alert("Saved successfully.")
+    }).catch(error => {
+      console.error(error)
+      alert("Error: Unable to save file to Git repository! Try it later, please.")
+    }).finally(() => {
+      this.setState({saveToGitStatus: GIT_READY})
+    })
   }
 
   downloadGeneratedFile = (type, name) => {
@@ -372,9 +405,21 @@ export default class Topbar extends React.Component {
             <Link href="#">
               <img height="35" className="topbar-logo__img" src={ Logo } alt=""/>
             </Link>
+            <button type="button" onClick={this.saveToGit} disabled={this.state.saveToGitStatus === GIT_IN_PROGRESS} style={{
+                  padding: "8px 13px",
+                  backgroundColor: "#85ea2d",
+                  borderRadius: 5,
+                  borderColor: "black",
+                  color: "black",
+            }}>
+              <img src={ Spinner } alt="Loading" className="cn-spinner" style={{
+                height: 10,
+                marginRight: 5,
+                display: this.state.saveToGitStatus === GIT_IN_PROGRESS ? undefined : "none"
+              }} />
+              Save to Git
+            </button>
             <DropdownMenu {...makeMenuOptions("File")}>
-              //TODO toto tlacitko hodit primo do toho horniho panelu a vymyslet logiku s disablovanim
-              <li><button type="button" onClick={this.saveToGit}>Save to Git</button></li>
               <li role="separator"></li>
               <li><button type="button" onClick={this.importFromURL}>Import URL</button></li>
               <ImportFileMenuItem onDocumentLoad={content => this.props.specActions.updateSpec(content)} />
